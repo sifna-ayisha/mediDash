@@ -1,0 +1,5 @@
+{
+  "name": "MediDash - Hms next js",
+  "description": "A modern, role-based hospital management system dashboard for administrators, doctors, lab technicians, and pharmacists. It features analytics, appointment management, and inventory tracking with a clean, responsive UI.",
+  "requestFramePermissions": []
+}
