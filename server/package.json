@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "main": "serverless.ts",
   "scripts": {
-    "dev": "nodemon src/index.ts",
-    "start": "ts-node src/index.ts",
-    "seed": "ts-node src/seed.ts"
-  },
+  "dev": "nodemon src/server.local.ts",
+  "start": "ts-node src/server.local.ts",
+  "seed": "ts-node src/seed.ts"
+}
+,
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
