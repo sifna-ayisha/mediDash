@@ -15,7 +15,6 @@
     "recharts": "^3.4.1",
     "jspdf": "2.5.1",
     "html2canvas": "1.4.1",
-    "next": "^16.0.3",
     "xlsx": "latest"
   },
   "devDependencies": {
