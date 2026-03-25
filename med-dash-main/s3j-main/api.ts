@@ -141,6 +141,12 @@ export const api = {
         });
         return response.json();
     },
+    deletePrescription: async (id: string) => {
+        const response = await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
+            method: 'DELETE',
+        });
+        return response.json();
+    },
 
     // Settings
     getSettings: async () => {

@@ -181,6 +181,19 @@ router.put('/prescriptions/:id', async (req, res) => {
     }
 });
 
+router.delete('/prescriptions/:id', async (req, res) => {
+    try {
+        const deletedPrescription = await PrescriptionModel.findOneAndDelete({ id: req.params.id });
+        if (!deletedPrescription) {
+            res.status(404).json({ message: 'Prescription not found' });
+            return;
+        }
+        res.json(deletedPrescription);
+    } catch (err) {
+        res.status(400).json({ message: (err as Error).message });
+    }
+});
+
 // --- Settings ---
 router.get('/settings', async (req, res) => {
     try {

@@ -10,6 +10,7 @@ import DoctorAvailability from '../doctor/DoctorAvailability';
 import DoctorLeaves from '../doctor/DoctorLeaves';
 import Card from '../common/Card';
 import Modal from '../common/Modal';
+import { api } from '../../api';
 
 const DashboardView: React.FC<{
   doctor: Doctor;
@@ -17,13 +18,16 @@ const DashboardView: React.FC<{
   patients: Patient[];
   inventory: InventoryItem[];
   labReports: LabReport[];
-  onAddPrescription: (prescription: Prescription) => void;
+  onAddPrescription: (prescription: Prescription) => Promise<void>;
   onAddLabReport: (report: LabReport) => void;
 }> = ({ doctor, appointments, patients, inventory, labReports, onAddPrescription, onAddLabReport }) => {
 
   const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
   const [isLabModalOpen, setIsLabModalOpen] = useState(false);
-  const [prescriptionData, setPrescriptionData] = useState({ patientId: '', medicineName: '', dosage: '', frequency: '', quantity: 1, instructions: '' });
+  const [prescriptionData, setPrescriptionData] = useState({
+    patientId: '',
+    items: [{ medicineName: '', dosage: '', frequency: '', quantity: 1, instructions: '' }]
+  });
   const [labTestData, setLabTestData] = useState({ patientId: '', testName: '', testFee: 0 });
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedLabPatient, setSelectedLabPatient] = useState<Patient | null>(null);
@@ -49,29 +53,46 @@ const DashboardView: React.FC<{
       [labReports, doctorPatientIds]
   );
 
-  const handlePrescriptionSubmit = (e: React.FormEvent) => {
+  const handlePrescriptionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prescriptionData.patientId || !prescriptionData.medicineName) {
-      alert("Please select a patient and enter a medicine name.");
+    if (!prescriptionData.patientId) {
+      alert("Please select a patient.");
       return;
     }
-    const newPrescription: Prescription = {
-      id: `presc${Date.now()}`,
-      doctorId: doctor.id,
-      patientId: prescriptionData.patientId,
-      medicineName: prescriptionData.medicineName,
-      dosage: prescriptionData.dosage,
-      quantity: prescriptionData.quantity,
-      frequency: prescriptionData.frequency,
-      instructions: prescriptionData.instructions,
-      dateIssued: new Date().toISOString().split('T')[0],
-      status: PrescriptionStatus.Issued,
-    };
-    onAddPrescription(newPrescription);
-    setPrescriptionData({ patientId: '', medicineName: '', dosage: '', frequency: '', quantity: 1, instructions: '' });
-    setSelectedPatient(null);
-    setIsPrescriptionModalOpen(false);
-    alert("Prescription issued successfully!");
+    const validItems = prescriptionData.items.filter(item => item.medicineName.trim());
+    if (validItems.length === 0) {
+      alert("Please add at least one medicine.");
+      return;
+    }
+    try {
+      const dateIssued = new Date().toISOString().split('T')[0];
+      const createJobs = validItems.map(item => {
+        const newPrescription: Prescription = {
+          id: `presc${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          doctorId: doctor.id,
+          patientId: prescriptionData.patientId,
+          medicineName: item.medicineName,
+          dosage: item.dosage,
+          quantity: item.quantity,
+          frequency: item.frequency,
+          instructions: item.instructions,
+          dateIssued,
+          status: PrescriptionStatus.Issued,
+        };
+        return onAddPrescription(newPrescription);
+      });
+      await Promise.all(createJobs);
+      setPrescriptionData({
+        patientId: '',
+        items: [{ medicineName: '', dosage: '', frequency: '', quantity: 1, instructions: '' }]
+      });
+      setSelectedPatient(null);
+      setIsPrescriptionModalOpen(false);
+      alert("Prescription issued successfully!");
+    } catch (error) {
+      console.error('Error issuing prescription:', error);
+      alert("Failed to issue prescription. Please try again.");
+    }
   };
 
   const handleLabTestSubmit = (e: React.FormEvent) => {
@@ -103,15 +124,37 @@ const DashboardView: React.FC<{
   }
 
   const handlePrescriptionChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const {name, value} = e.target;
-    const isNumberField = ['quantity'].includes(name);
-    setPrescriptionData(prev => ({...prev, [name]: isNumberField ? parseInt(value) || 0 : value}));
-
+    const { name, value } = e.target;
     if (name === 'patientId') {
+      setPrescriptionData(prev => ({ ...prev, patientId: value }));
       const patient = patients.find(p => p.id === value);
       setSelectedPatient(patient || null);
+      return;
     }
-  }
+  };
+
+  const handlePrescriptionItemChange = (index: number, field: string, value: string) => {
+    setPrescriptionData(prev => {
+      const updatedItems = [...prev.items];
+      const isNumberField = ['quantity'].includes(field);
+      updatedItems[index] = { ...updatedItems[index], [field]: isNumberField ? parseInt(value) || 0 : value };
+      return { ...prev, items: updatedItems };
+    });
+  };
+
+  const handleAddPrescriptionItem = () => {
+    setPrescriptionData(prev => ({
+      ...prev,
+      items: [...prev.items, { medicineName: '', dosage: '', frequency: '', quantity: 1, instructions: '' }]
+    }));
+  };
+
+  const handleRemovePrescriptionItem = (index: number) => {
+    setPrescriptionData(prev => {
+      const updatedItems = prev.items.filter((_, i) => i !== index);
+      return { ...prev, items: updatedItems.length ? updatedItems : [{ medicineName: '', dosage: '', frequency: '', quantity: 1, instructions: '' }] };
+    });
+  };
   
   const handleLabTestChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
@@ -222,30 +265,77 @@ const DashboardView: React.FC<{
                         </div>
                     )}
                 </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-600">Medicine</label>
-                    <input list="medicines" type="text" name="medicineName" value={prescriptionData.medicineName} onChange={handlePrescriptionChange} placeholder="Search medicine..." className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition" required />
-                    <datalist id="medicines">
-                    {inventory.map(item => <option key={item.id} value={item.name} />)}
-                    </datalist>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-sm font-medium text-slate-600">Dosage</label>
-                        <input type="text" name="dosage" value={prescriptionData.dosage} onChange={handlePrescriptionChange} placeholder="e.g., 500mg" className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition" />
-                    </div>
-                    <div>
-                        <label className="text-sm font-medium text-slate-600">Quantity</label>
-                        <input type="number" name="quantity" value={prescriptionData.quantity} onChange={handlePrescriptionChange} className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition" min="1" />
-                    </div>
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-600">Frequency</label>
-                    <input type="text" name="frequency" value={prescriptionData.frequency} onChange={handlePrescriptionChange} placeholder="e.g., Twice a day" className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition" />
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-600">Instructions</label>
-                    <textarea name="instructions" value={prescriptionData.instructions} onChange={handlePrescriptionChange} placeholder="e.g., After meals" rows={2} className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition" />
+                <div className="space-y-4">
+                    {prescriptionData.items.map((item, index) => (
+                      <div key={index} className="p-4 border border-slate-200 rounded-xl bg-slate-50/40">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-sm font-semibold text-slate-700">Medicine {index + 1}</p>
+                          <button type="button" onClick={() => handleRemovePrescriptionItem(index)} className="text-xs text-red-600 hover:text-red-700">
+                            Remove
+                          </button>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-slate-600">Medicine</label>
+                          <input
+                            list={`medicines-${index}`}
+                            type="text"
+                            value={item.medicineName}
+                            onChange={(e) => handlePrescriptionItemChange(index, 'medicineName', e.target.value)}
+                            placeholder="Search medicine..."
+                            className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                            required
+                          />
+                          <datalist id={`medicines-${index}`}>
+                            {inventory.map(inv => <option key={inv.id} value={inv.name} />)}
+                          </datalist>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-3">
+                          <div>
+                            <label className="text-sm font-medium text-slate-600">Dosage</label>
+                            <input
+                              type="text"
+                              value={item.dosage}
+                              onChange={(e) => handlePrescriptionItemChange(index, 'dosage', e.target.value)}
+                              placeholder="e.g., 500mg"
+                              className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-slate-600">Quantity</label>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handlePrescriptionItemChange(index, 'quantity', e.target.value)}
+                              className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                              min="1"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <label className="text-sm font-medium text-slate-600">Frequency</label>
+                          <input
+                            type="text"
+                            value={item.frequency}
+                            onChange={(e) => handlePrescriptionItemChange(index, 'frequency', e.target.value)}
+                            placeholder="e.g., Twice a day"
+                            className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                          />
+                        </div>
+                        <div className="mt-3">
+                          <label className="text-sm font-medium text-slate-600">Instructions</label>
+                          <textarea
+                            value={item.instructions}
+                            onChange={(e) => handlePrescriptionItemChange(index, 'instructions', e.target.value)}
+                            placeholder="e.g., After meals"
+                            rows={2}
+                            className="w-full mt-1 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" onClick={handleAddPrescriptionItem} className="w-full p-2.5 border border-dashed border-blue-300 text-blue-700 rounded-xl hover:bg-blue-50 transition">
+                      + Add another medicine
+                    </button>
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
                      <button type="button" onClick={() => setIsPrescriptionModalOpen(false)} className="px-5 py-2.5 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300">Cancel</button>
@@ -331,8 +421,24 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
     return <div className="text-center p-8 bg-white rounded-2xl shadow-sm">Doctor data not found.</div>;
   }
 
-  const handleAddPrescription = (prescription: Prescription) => {
-    setPrescriptions(prev => [prescription, ...prev]);
+  const handleAddPrescription = async (prescription: Prescription) => {
+    try {
+      const created = await api.createPrescription(prescription);
+      setPrescriptions(prev => [created, ...prev]);
+    } catch (error) {
+      console.error('Error creating prescription:', error);
+      throw error;
+    }
+  };
+
+  const handleDeletePrescription = async (prescriptionId: string) => {
+    try {
+      await api.deletePrescription(prescriptionId);
+      setPrescriptions(prev => prev.filter(p => p.id !== prescriptionId));
+    } catch (error) {
+      console.error('Error deleting prescription:', error);
+      throw error;
+    }
   };
   
   const handleAddLabReport = (report: LabReport) => {
@@ -388,8 +494,12 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
         return <DoctorPrescriptions 
             prescriptions={doctorPrescriptions} 
             patients={patients} 
+            doctorPatients={doctorPatients}
+            inventory={inventory}
             doctor={doctor}
             clinicSettings={clinicSettings}
+            onAddPrescription={handleAddPrescription}
+            onDeletePrescription={handleDeletePrescription}
         />;
       case 'Lab Reports':
         return <DoctorLabReports 

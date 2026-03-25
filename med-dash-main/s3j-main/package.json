@@ -1,4 +1,4 @@
- {
+{
   "name": "medidash---hms-next-js",
   "private": true,
   "version": "0.0.0",
@@ -9,17 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "html2canvas": "1.4.1",
+    "jspdf": "2.5.1",
+    "lucide-react": "^0.553.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "lucide-react": "^0.553.0",
     "recharts": "^3.4.1",
-    "jspdf": "2.5.1",
-    "html2canvas": "1.4.1",
     "xlsx": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "baseline-browser-mapping": "^2.9.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
